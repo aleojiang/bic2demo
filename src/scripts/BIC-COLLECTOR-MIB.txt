@@ -58,7 +58,7 @@ bicDataCollectorMIB MODULE-IDENTITY
 -- it makes it clear in an AGENT-CAPABILITY statement.
 --
 ----------------------------------------------------------------------------
-BicAlarmContent ::= TEXTUAL-CONVENTION
+DataCollectorAlarmContent ::= TEXTUAL-CONVENTION
     STATUS       current
     DESCRIPTION
           "This the BIC alarm content object.
@@ -76,219 +76,41 @@ BicAlarmContent ::= TEXTUAL-CONVENTION
 ------------
 -- Scalars and Tables
 ------------
-datacollectorAlarms                       OBJECT IDENTIFIER ::= { bicDataCollectorMIB 99 } --1.3.6.1.4.1.9999.1.4.99
-
-processesStatusAlarm     OBJECT-TYPE
-  			--1.3.6.1.4.1.9999.1.2.99.1
-  			SYNTAX  BicAlarmContent
-  			MAX-ACCESS  read-only
-  			STATUS  current
-  			DESCRIPTION
-          			"The critical processes status in BIC platform."
-  			::= {sysinfoAlarms 1}
-
-
-hostsStatusAlarm     OBJECT-TYPE
-  			--1.3.6.1.4.1.9999.1.2.99.2
-  			SYNTAX  BicAlarmContent
-  			MAX-ACCESS  read-only
-  			STATUS  current
-  			DESCRIPTION
-          			"The hosts status in BIC platform."
-  			::= {sysinfoAlarms 2}
-
-drbdSplitBrainAlarm     OBJECT-TYPE
-  			--1.3.6.1.4.1.9999.1.2.99.3
-  			SYNTAX  BicAlarmContent
-  			MAX-ACCESS  read-only
-  			STATUS  current
-  			DESCRIPTION
-          			"The DRBD split brain error."
-  			::= {sysinfoAlarms 3}
-
-diskSpaceNotEnoughAlarm     OBJECT-TYPE
-  			--1.3.6.1.4.1.9999.1.2.99.4
-  			SYNTAX  BicAlarmContent
-  			MAX-ACCESS  read-only
-  			STATUS  current
-  			DESCRIPTION
-          			"The disk space not enough error."
-  			::= {sysinfoAlarms 4}
-
-heartBeatAlarm     OBJECT-TYPE
-            --1.3.6.1.4.1.9999.1.2.99.5
-            SYNTAX  BicAlarmContent
-            MAX-ACCESS  read-only
-            STATUS  current
-            DESCRIPTION
-                    "The disk space not enough error."
-            ::= {sysinfoAlarms 5}
-
-
-sysinfoSeverity           OBJECT-TYPE
-  			--1.3.6.1.4.1.9999.1.2.99.999
+dcSeverity  OBJECT-TYPE
   			SYNTAX  INTEGER (0..255)
   			MAX-ACCESS  read-only
   			STATUS  current
   			DESCRIPTION
-          			"BIC Environment Alarm Severity."
-  			::= {sysinfoAlarms 999}
+          			"global environment alarm severity inside data collector."
+  			::= {bicDataCollectorMIB 999}
+
+
+
+dcAlarms        OBJECT IDENTIFIER
+                        ::= { bicDataCollectorMIB 99 }
+
+dcStatusAlarm     OBJECT-TYPE
+                        SYNTAX  DataCollectorAlarmContent
+                        MAX-ACCESS  read-only
+                        STATUS  current
+                        DESCRIPTION
+                                "The working status of data collector in production platform."
+                        ::= {dcAlarms 1}
+
 
 ------------
 -- Traps
 ------------
 
-processStatusTraps              OBJECT IDENTIFIER  --1.3.6.1.4.1.9999.1.2.1
-                                ::= { bicSysInfoMIB 1 }
+dcTraps         OBJECT IDENTIFIER
+                        ::= { bicDataCollectorMIB 1 }
 
-postgresqlServerDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
+dcStatusTrap NOTIFICATION-TYPE
+                         OBJECTS {dcSeverity,dcStatusAlarm}
                          STATUS current
                          DESCRIPTION
                              "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.1
-                         ::= { processStatusTraps  1 }
+                         ::= {dcTraps  1}
 
-pgpoolServerDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.2
-                         ::= { processStatusTraps  2 }
-
-bicAppServerDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.3
-                         ::= { processStatusTraps  3 }
-
-httpdServerDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.4
-                         ::= { processStatusTraps  4 }
-
-hadoopNamenodeDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.5
-                         ::= { processStatusTraps  5 }
-
-hiveServerDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.6
-                         ::= { processStatusTraps  6 }
-
-hadoopDatanodeDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.7
-                         ::= { processStatusTraps  7 }
-
-hadoopTasktrackerDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.8
-                         ::= { processStatusTraps  8 }
-
-hadoopJobtrackerDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.9
-                         ::= { processStatusTraps  9 }
-
-hadoopSecondaryNNDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.10
-                         ::= { processStatusTraps  10 }
-
-allProcessesUpAgainTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,processesStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of process."
-                         --1.3.6.1.4.1.9999.1.2.1.11
-                         ::= { processStatusTraps  11 }
-
-hostStatusTraps              OBJECT IDENTIFIER  --1.3.6.1.4.1.9999.1.2.2
-                                ::= { bicSysInfoMIB 2 }
-
-nodeDownTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,hostsStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of node."
-                         --1.3.6.1.4.1.9999.1.2.2.1
-                         ::= { hostStatusTraps  1 }
-
-nodeUpAgainTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,hostsStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of node."
-                         --1.3.6.1.4.1.9999.1.2.2.2
-                         ::= { hostStatusTraps  2 }
-
-datanodeMachineDown NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,hostsStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of node."
-                         --1.3.6.1.4.1.9999.1.2.2.3
-                         ::= { hostStatusTraps  3 }
-
-datanodeMachineUpAgain NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,hostsStatusAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate a status change of node."
-                         --1.3.6.1.4.1.9999.1.2.2.4
-                         ::= { hostStatusTraps  4 }
-
-otherCriticalTraps              OBJECT IDENTIFIER  --1.3.6.1.4.1.9999.1.2.3
-                                ::= { bicSysInfoMIB 3 }
-
-drbdSplitBrainTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,drbdSplitBrainAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate there is a split brain happened on drbd partition."
-                         --1.3.6.1.4.1.9999.1.2.3.1
-                         ::= { otherCriticalTraps  1 }
-
-diskSpaceNotEnoughTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,diskSpaceNotEnoughAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate there is not enough disk space available."
-                         --1.3.6.1.4.1.9999.1.2.3.2
-                         ::= { otherCriticalTraps  2 }
-
-heartBeatTrap NOTIFICATION-TYPE
-                         OBJECTS {sysinfoSeverity,heartBeatAlarm}
-                         STATUS current
-                         DESCRIPTION
-                             "This notification(trap) is sent to indicate that BIC process is alive."
-                         --1.3.6.1.4.1.9999.1.2.3.3
-                         ::= { otherCriticalTraps  3 }
 
 END
