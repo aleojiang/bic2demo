@@ -1,0 +1,6 @@
+# simple password-based config
+login-type = password
+username = root
+password = slashPUMKIN2
+command-timeout = 5000
+enable-compression = yes
