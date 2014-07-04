@@ -1,8 +1,8 @@
 package com.bic.etl
 
-import java.nio.file.{Paths, Files}
+import java.io.{File, FileInputStream, FileOutputStream}
+import java.nio.file.{Files, Paths}
 import java.util.Properties
-import java.io.{FileOutputStream, FileInputStream, File}
 
 import org.apache.spark.SparkContext._
 import org.apache.spark.{Logging, SparkConf, SparkContext}
@@ -42,6 +42,9 @@ object MainApp extends App with Logging {
   logInfo(s"cdrPattern=$cdrPattern")
   val propPattern = commonProperties.getProperty("cdrfmt.fn.regexp")
   logInfo(s"propPattern=$propPattern")
+  val pagePattern = commonProperties.getProperty("page.regexp")
+  logInfo(s"pagePattern=$pagePattern")
+
 
   val sparkConf = new SparkConf()
     .setMaster(workMode)
@@ -104,33 +107,70 @@ object MainApp extends App with Logging {
 
   def step3(from: String, inPath: String) = {
     val confPath = inPath.replaceAll(inDir, confDir)
-    implicit val tps: List[CDRFormater] = Paths.get(confPath).toFile.listFiles().map(f => {
+    implicit val tps = Paths.get(confPath).toFile.listFiles().map(f => {
       val prop = new Properties()
+      logError(s"load=${f.getAbsolutePath}")
       prop.load(new FileInputStream(f))
       new CDRFormater(prop)
-    }).toList
+    })
     if (Paths.get(inPath).toFile.listFiles().length > 0) {
-      val data = sc.wholeTextFiles(inPath)
+      val data1 = sc.wholeTextFiles(inPath)
         .map(kv => kv._2.split("\n").map(v => {
         val pattern = cdrPattern.r
         val pattern(op) = kv._1
         s"$from;$op;$v"
       }))
         .flatMap(p => p)
-        .map(genKV)
-        .reduceByKey(_ + _, 1)
-
-      data.saveAsTextFile("/tmp/12")
+      data1.map(dimUser).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/12")
+      data1.map(dimPage).flatMap(p=>p).map(p=>(p,1)).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/13")
     }
   }
 
-  def genKV(text: String)(implicit tps: List[CDRFormater]) = {
-    val temp = text.split(";")
-    ("1", "")
+  def cdrFormater(text: String)(implicit tps: Array[CDRFormater]) = {
+    logError(s"$text")
+    tps.find(prop => {
+      prop.getSessionTime(text, "session_time") match {
+        case Some(t) =>
+          if (t.asInstanceOf[Long] * 1000L >= prop.getTs) {
+            true
+          } else {
+            false
+          }
+        case None => false
+      }
+    }) match {
+      case Some(taskConfig) => taskConfig
+      case None => throw new Exception
+    }
+  }
+
+  def dimUser(text: String)(implicit tps: Array[CDRFormater]) = {
+    val formater = cdrFormater(text)
+    val delimiter = formater.delimiter
+    val from = text.split(delimiter)(0)
+    val op = text.split(delimiter)(1)
+    val msisdn = formater.getFieldValue(text, "msisdn").getOrElse("")
+    val imsi = formater.getFieldValue(text, "imsi").getOrElse("")
+    val imei = formater.getFieldValue(text, "imei").getOrElse("")
+    val key = List(from, op, msisdn, imsi, imei).mkString(delimiter)
+    val value = 1
+    (key, value)
+  }
+
+  def dimPage(text: String)(implicit tps: Array[CDRFormater]) = {
+    val formater = cdrFormater(text)
+    val delimiter = formater.delimiter
+    val from = text.split(delimiter)(0)
+    val op = text.split(delimiter)(1)
+    val pages = formater.getFieldValue(text, "action_url").getOrElse("").toString
+    pagePattern.r.findAllMatchIn(pages).map(p=>s"$from$delimiter$op$delimiter$p").toList
+//
+//    pages.toString.split(",").map(p=>s"$from$delimiter$op$delimiter$p").toList
   }
 }
 
-class CDRFormater(properties:Properties) extends Serializable {
+
+class CDRFormater(properties: Properties) extends Serializable {
   val tsPattern = "yyyy-MM-dd HH:mm:SS"
   val tsName = "format_start_date_time"
 
@@ -141,7 +181,8 @@ class CDRFormater(properties:Properties) extends Serializable {
   def getTs = DateTime.parse(properties.getProperty(tsName), DateTimeFormat.forPattern(tsPattern)).getMillis
 
   def getSessionTime(text: String, key: String, aggPattern: Option[String] = None) = {
-    val index = properties.getProperty(s"$key.index").toInt
+    val ttt = properties.getProperty(s"$key.index")
+    val index = properties.getProperty(s"$key.index").toInt + 2
     val delimiter = properties.getProperty(s"delimiter")
     val tp = properties.getProperty(s"$key.type").toUpperCase
     val fmt = properties.getProperty(s"$key.format")
@@ -164,7 +205,7 @@ class CDRFormater(properties:Properties) extends Serializable {
   }
 
   def getFieldValue(text: String, key: String) = {
-    val index = properties.getProperty(s"$key.index").toInt
+    val index = properties.getProperty(s"$key.index").toInt + 2
     val delimiter = properties.getProperty(s"delimiter")
     val tp = properties.getProperty(s"$key.type").toUpperCase
     val ovs = text.split(delimiter)(index)
@@ -215,8 +256,13 @@ object TempTool extends App {
   //    })
   //  })
 
-  val t = "data_format-submscdr-5-vodafone_india-20120921.properties"
-  val pattern = "data_format-.*-(.*)-.*.properties".r
-  val pattern(op) = t
-  println(op)
+//  val t = "data_format-submscdr-5-vodafone_india-20120921.properties"
+//  val pattern = "data_format-.*-(.*)-.*.properties".r
+//  val pattern(op) = t
+//  println(op)
+  val pages = "#702*#=file:/mcel/xumii/twitter/en/twitter_login.xml#id_entry_input_pincode,1234=file:/mcel/xumii/twitter/en/twitter_login.xml#main_menu,2=file:/mcel/xumii/twitter/en/twitter_post_tweet.xml,1=file:/mcel/xumii/twitter/en/twitter_post_tweet.xml#id87,hello everyone2012-08-16T08:02:38=file:/mcel/xumii/twitter/en/twitter_post_tweet.xml#id90,9=file:/mcel/xumii/twitter/en/twitter_login.xml#main_menu,1=file:/mcel/xumii/twitter/en/twitter_timeline.xml#timeline_brief,1=file:/mcel/xumii/twitter/en/twitter_timeline.xml#id12"
+  val p = "(file:[^\\,\r\n?]+|https?:[^\\,\r\n?]+)"
+  val xx = p.r.findAllMatchIn(pages).toList
+  println(xx)
+
 }
