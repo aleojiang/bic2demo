@@ -109,9 +109,8 @@ object MainApp extends App with Logging {
     val confPath = inPath.replaceAll(inDir, confDir)
     implicit val tps = Paths.get(confPath).toFile.listFiles().map(f => {
       val prop = new Properties()
-      logError(s"load=${f.getAbsolutePath}")
       prop.load(new FileInputStream(f))
-      new CDRFormater(prop)
+      new CDRFormatter(prop)
     })
     if (Paths.get(inPath).toFile.listFiles().length > 0) {
       val data1 = sc.wholeTextFiles(inPath)
@@ -126,7 +125,7 @@ object MainApp extends App with Logging {
     }
   }
 
-  def cdrFormater(text: String)(implicit tps: Array[CDRFormater]) = {
+  def chooseFormatter(text: String)(implicit tps: Array[CDRFormatter]) = {
     logError(s"$text")
     tps.find(prop => {
       prop.getSessionTime(text, "session_time") match {
@@ -144,33 +143,31 @@ object MainApp extends App with Logging {
     }
   }
 
-  def dimUser(text: String)(implicit tps: Array[CDRFormater]) = {
-    val formater = cdrFormater(text)
-    val delimiter = formater.delimiter
+  def dimUser(text: String)(implicit tps: Array[CDRFormatter]) = {
+    val formatter = chooseFormatter(text)
+    val delimiter = formatter.delimiter
     val from = text.split(delimiter)(0)
     val op = text.split(delimiter)(1)
-    val msisdn = formater.getFieldValue(text, "msisdn").getOrElse("")
-    val imsi = formater.getFieldValue(text, "imsi").getOrElse("")
-    val imei = formater.getFieldValue(text, "imei").getOrElse("")
+    val msisdn = formatter.getFieldValue(text, "msisdn").getOrElse("")
+    val imsi = formatter.getFieldValue(text, "imsi").getOrElse("")
+    val imei = formatter.getFieldValue(text, "imei").getOrElse("")
     val key = List(from, op, msisdn, imsi, imei).mkString(delimiter)
     val value = 1
     (key, value)
   }
 
-  def dimPage(text: String)(implicit tps: Array[CDRFormater]) = {
-    val formater = cdrFormater(text)
-    val delimiter = formater.delimiter
+  def dimPage(text: String)(implicit tps: Array[CDRFormatter]) = {
+    val formatter = chooseFormatter(text)
+    val delimiter = formatter.delimiter
     val from = text.split(delimiter)(0)
     val op = text.split(delimiter)(1)
-    val pages = formater.getFieldValue(text, "action_url").getOrElse("").toString
+    val pages = formatter.getFieldValue(text, "action_url").getOrElse("").toString
     pagePattern.r.findAllMatchIn(pages).map(p=>s"$from$delimiter$op$delimiter$p").toList
-//
-//    pages.toString.split(",").map(p=>s"$from$delimiter$op$delimiter$p").toList
   }
 }
 
 
-class CDRFormater(properties: Properties) extends Serializable {
+class CDRFormatter(properties: Properties) extends Serializable {
   val tsPattern = "yyyy-MM-dd HH:mm:SS"
   val tsName = "format_start_date_time"
 
