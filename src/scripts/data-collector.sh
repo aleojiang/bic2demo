@@ -1,7 +1,7 @@
 #!/bin/bash
 logfile="/tmp/data-collector-err.log"$(date +%Y-%m-%d)
 datacenter="mdc"
-targetrawfolder="/mnt/backup/bic/raw/"
+targetrawfolder="/mnt/backup/bic/raw/${datacenter}/"
 targetcompressfloder="/mnt/backup/bic/compressed/"
 
 nodetypes=(cccdr ccstats cgcdr cgstats \

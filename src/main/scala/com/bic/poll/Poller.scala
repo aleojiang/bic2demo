@@ -4,10 +4,10 @@ import java.io.{IOException, File}
 import java.nio._
 import java.nio.file._
 
-import com.decodified.scalassh._
-import com.typesafe.config.{ConfigList, ConfigValue, ConfigFactory, Config}
-import net.schmizz.sshj.xfer.FileSystemFile
-
+//import com.decodified.scalassh._
+//import com.typesafe.config.{ConfigList, ConfigValue, ConfigFactory, Config}
+//import net.schmizz.sshj.xfer.FileSystemFile
+//
 import scala.io.Source
 
 /**
@@ -54,15 +54,15 @@ object Poller extends App {
 //    Thread sleep 1000
 //  }
 //
-  nodePolling("cncduldt011")
-  def nodePolling(host: String) = {
-    SSH(host, HostResourceConfig()) {
-      client=>
-        val scp = client.client.newSCPFileTransfer().newSCPDownloadClient()
-        scp.setRecursiveMode(true)
-        scp.copy("/opt/data/*", new FileSystemFile("/tmp/11/"))
-    }
-  }
+//  nodePolling("cncduldt011")
+//  def nodePolling(host: String) = {
+//    SSH(host, HostResourceConfig()) {
+//      client=>
+//        val scp = client.client.newSCPFileTransfer().newSCPDownloadClient()
+//        scp.setRecursiveMode(true)
+//        scp.copy("/opt/data/*", new FileSystemFile("/tmp/11/"))
+//    }
+//  }
 
 
 }
