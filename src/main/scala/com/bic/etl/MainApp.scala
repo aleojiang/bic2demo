@@ -113,15 +113,37 @@ object MainApp extends App with Logging {
       new CDRFormatter(prop)
     })
     if (Paths.get(inPath).toFile.listFiles().length > 0) {
-      val data1 = sc.wholeTextFiles(inPath)
+      val rawData = sc.wholeTextFiles(inPath)
         .map(kv => kv._2.split("\n").map(v => {
         val pattern = cdrPattern.r
         val pattern(op) = kv._1
         s"$from;$op;$v"
       }))
         .flatMap(p => p)
-      data1.map(dimUser).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/12")
-      data1.map(dimPage).flatMap(p=>p).map(p=>(p,1)).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/13")
+      val dimUser = sc.textFile("").map(p=>(p,p))
+      var latestUserId = dimUser.sortByKey(ascending = true,1).collect().last._1
+      val newFoundUsers = rawData.map(updateUserDim)
+        .leftOuterJoin(dimUser).filter(p=>p._2._2.isEmpty).collect()
+      newFoundUsers foreach {
+        case (k, (value,None)) =>
+          latestUserId += 1
+          val line = s"$value;$latestUserId\n"
+        case _ =>
+      }
+
+      val dimPage = sc.textFile("").map(p=>(p,p))
+      var latestPageId = dimPage.sortByKey(ascending = true,1).collect().last._1
+      val newFoundPages = rawData.map(updatePageDim).flatMap(p=>p).map(p=>(p,1))
+        .leftOuterJoin(dimPage).filter(p=>p._2._2.isEmpty).collect()
+      newFoundPages foreach {
+        case (k, (value,None)) =>
+          latestPageId += 1
+          val line = s"$value;$latestPageId\n"
+        case _ =>
+      }
+
+      rawData.map(updateUserDim).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/12")
+      rawData.map(updatePageDim).flatMap(p=>p).map(p=>(p,1)).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/13")
     }
   }
 
@@ -143,7 +165,8 @@ object MainApp extends App with Logging {
     }
   }
 
-  def dimUser(text: String)(implicit tps: Array[CDRFormatter]) = {
+
+  def updateUserDim(text: String)(implicit tps: Array[CDRFormatter]) = {
     val formatter = chooseFormatter(text)
     val delimiter = formatter.delimiter
     val from = text.split(delimiter)(0)
@@ -156,7 +179,7 @@ object MainApp extends App with Logging {
     (key, value)
   }
 
-  def dimPage(text: String)(implicit tps: Array[CDRFormatter]) = {
+  def updatePageDim(text: String)(implicit tps: Array[CDRFormatter]) = {
     val formatter = chooseFormatter(text)
     val delimiter = formatter.delimiter
     val from = text.split(delimiter)(0)
