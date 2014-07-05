@@ -206,9 +206,9 @@ object MainApp extends App with Logging {
 
   def chooseFormatter(text: String)(implicit tps: Map[String, List[CDRFormatter]]) = {
     val op = text.split(";")(1)
-    val ppp = tps.get(op).get
+    val propsOfOp = tps.get(op).get
     //    logError(s"$text")
-    ppp.find(prop => {
+    propsOfOp.find(prop => {
       //      logError(s"1=${prop.getSessionTime(text, "session_time")}")
       //      logError(s"2=${prop.getTs}")
       prop.getSessionTime(text, "session_time") match {
@@ -311,8 +311,10 @@ class CDRFormatter(properties: Properties) extends Serializable with Logging {
         case "INT" => ovs.toInt
         case "LONG" => ovs.toLong
         case _ =>
-          if (key == "action_url") fmt.r.findAllMatchIn(ovs).map(p => s"$p").mkString(",")
-          else ovs
+          key.toLowerCase match {
+            case "action_url"=>fmt.r.findAllMatchIn(ovs).map(p => s"$p").mkString(",")
+            case _ => ovs
+          }
       })
     } catch {
       case e: Exception => None
