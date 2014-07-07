@@ -1,6 +1,6 @@
 package com.bic.etl
 
-import java.io.{OutputStreamWriter, File, FileInputStream, FileOutputStream}
+import java.io.{File, FileInputStream, FileOutputStream, OutputStreamWriter}
 import java.nio.file.{Files, Paths}
 import java.util.Properties
 
@@ -8,11 +8,10 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.{Logging, SparkConf, SparkContext}
 import org.joda.time.DateTime
 import org.joda.time.format.DateTimeFormat
-import org.json4s.JsonAST.{JObject,JString}
+import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.jackson.JsonMethods.parse
 
 import scala.annotation.tailrec
-import scala.io.Source
 
 /**
  * Created by patrick.jiang on 7/4/14.
@@ -21,30 +20,18 @@ import scala.io.Source
 object MainApp extends App with Logging {
 
   val commonProperties = new Properties()
-  val cpFile = Source.fromFile("/mnt/backup/bic/conf/cccdr.properties").reader()
-  commonProperties.load(cpFile)
-  cpFile.close()
+  commonProperties.load(getClass.getClassLoader.getResourceAsStream("etl.properties"))
 
   val workMode = commonProperties.getProperty("spark.work.mode")
-  logInfo(s"workMode=$workMode")
   val appName = commonProperties.getProperty("spark.app.name")
-  logInfo(s"appName=$appName")
   val dimDir = commonProperties.getProperty("data.dim.dir")
-  logInfo(s"dimDir=$dimDir")
   val inDir = commonProperties.getProperty("data.in.dir")
-  logInfo(s"inDir=$inDir")
   val outDir = commonProperties.getProperty("data.out.dir")
-  logInfo(s"outDir=$outDir")
   val confDir = commonProperties.getProperty("data.conf.dir")
-  logInfo(s"confDir=$confDir")
   val rawDir = commonProperties.getProperty("data.raw.dir")
-  logInfo(s"rawDir=$rawDir")
   val cdrPattern = commonProperties.getProperty("cdrdata.fn.regexp")
-  logInfo(s"cdrPattern=$cdrPattern")
   val propPattern = commonProperties.getProperty("cdrfmt.fn.regexp")
-  logInfo(s"propPattern=$propPattern")
   val pagePattern = commonProperties.getProperty("page.regexp")
-  logInfo(s"pagePattern=$pagePattern")
 
   val sparkConf = new SparkConf()
     .setMaster(workMode)
@@ -63,13 +50,32 @@ object MainApp extends App with Logging {
   step(inDir, step3)
 
   def step(root: String, fun: (String, String) => Unit) = {
+    logError(s"root=$root")
     Paths.get(root).toFile.listFiles().filter(_.isDirectory)
-      .map(f => f.getName -> f.listFiles().filter(_.isDirectory).map(_.getAbsolutePath))
+      .map(f => (f.getName, f.listFiles().filter(_.isDirectory).map(_.getName)))
       .map(kv => kv._2.foreach(v => fun(kv._1, v)))
   }
 
-  def step1(from: String, sources: String) = {
-    Paths.get(sources).toFile.listFiles().foreach(f => {
+  def step1(datacenter: String, sources: String): Unit = {
+    logError(s"step1=$rawDir/$datacenter/$sources")
+    //    val dirFiles = Paths.get(sources).toFile.listFiles()
+    //    dirFiles.foldLeft(List[String]())((acc, f) => {
+    //      f.getName.endsWith(".properties") match {
+    //        case true =>
+    //          val targetDir = Paths.get(s"${f.getParent.replaceAll(rawDir, confDir)}/$tws")
+    //          val target = Paths.get(s"${f.getParent.replaceAll(rawDir, confDir)}/$tws/${f.getName}")
+    //          targetDir.toFile.mkdirs()
+    //          Files.move(f.toPath, target)
+    //        case _ =>
+    //          val targetDir = Paths.get(s"${f.getParent.replaceAll(rawDir, inDir)}/$tws")
+    //          val target = Paths.get(s"${f.getParent.replaceAll(rawDir, inDir)}/$tws/${f.getName}")
+    //          targetDir.toFile.mkdirs()
+    //          Files.move(f.toPath, target)
+    //      }
+    //      acc ++ List(f.getAbsolutePath)
+    //    })
+    val tempF = Paths.get(s"$rawDir/$datacenter/$sources").toFile.listFiles()
+    tempF.foreach(f => {
       f.getName.endsWith(".properties") match {
         case true =>
           val targetDir = Paths.get(s"${f.getParent.replaceAll(rawDir, confDir)}/$tws")
@@ -85,9 +91,14 @@ object MainApp extends App with Logging {
     })
   }
 
-  def step2(from: String, sources: String) = {
-    //    logError(s"$sources/$tws")
-    new File(s"$sources/$tws").listFiles()
+  def step2(datacenter: String, datatype: String): Unit = {
+    logError(s"step2=$datacenter/$datatype/$tws")
+    val inputPath=s"$confDir/$datacenter/$datatype/$tws"
+    val outputPath=s"$confDir/$datacenter/$datatype"
+
+    val tempF = Paths.get(inputPath).toFile
+    if (!tempF.exists()) return
+    tempF.listFiles()
       .filter(_.getName.endsWith(".properties")).foreach(f => {
       val pattern = propPattern.r
       val pattern(op) = f.getName
@@ -120,7 +131,7 @@ object MainApp extends App with Logging {
       }
       prop.remove(jfn)
       val now = new DateTime()
-      val outputName = f.getAbsolutePath.replaceAll(f.getName, s"$from-$op-${now.getMillis}.conf")
+      val outputName =  s"$outputPath/$datacenter-$op-${now.getMillis}.conf"
       val output = new FileOutputStream(outputName)
       prop.store(output, s"new created data format for etl at $now")
       output.flush()
@@ -128,10 +139,22 @@ object MainApp extends App with Logging {
     })
   }
 
-  def step3(from: String, inPath: String) = {
-    val confPath = inPath.replaceAll(inDir, confDir)
-    implicit val tps: Map[String, List[CDRFormatter]] = Paths.get(s"$confPath/$tws")
-      .toFile.listFiles().filter(_.getName.endsWith(".conf"))
+  def step3(datacenter: String, datatype: String): Unit = {
+    val datapath = s"$inDir/$datacenter/$datatype/$tws"
+    val confpath = s"$confDir/$datacenter/$datatype"
+    val userpath = s"$dimDir/$datacenter/user"
+    val pagepath = s"$dimDir/$datacenter/page"
+
+    logError(s"step3=$datapath")
+    logError(s"step3=$confpath")
+    logError(s"step3=$userpath")
+    logError(s"step3=$pagepath")
+
+    val tempF = Paths.get(datapath).toFile
+    if (!tempF.exists() || tempF.listFiles().length <= 0) return
+
+    implicit val tps = Paths.get(confpath).toFile.listFiles()
+      .filter(_.getName.endsWith(".conf"))
       .map(f => {
       val pattern = ".*-(.*)-\\d{13}.conf$*".r
       val pattern(op) = f.getName
@@ -140,68 +163,65 @@ object MainApp extends App with Logging {
       (op, new CDRFormatter(prop))
     }).groupBy(p => p._1).map(p => (p._1, p._2.map(x => x._2).toList))
 
-    logError(s"$tps")
+    val rawData = sc.wholeTextFiles(datapath)
+      .map(kv => kv._2.split("\n").map(v => {
+      val pattern = cdrPattern.r
+      val pattern(op) = kv._1
+      s"$datacenter;$op;$v"
+    }))
+      .flatMap(p => p).map(convertToStd)
 
-    //    logError(s"$inPath/$tws")
-    if (Paths.get(s"$inPath/$tws").toFile.listFiles().length > 0) {
-      val rawData = sc.wholeTextFiles(s"$inPath/$tws")
-        .map(kv => kv._2.split("\n").map(v => {
-        val pattern = cdrPattern.r
-        val pattern(op) = kv._1
-        s"$from;$op;$v"
-      }))
-        .flatMap(p => p).map(convertToStd)
-
-      val dimUser = sc.textFile(s"$dimDir/$from/user").map(p => {
-        val temp = p.split(";")
-        (temp.head.toInt, temp.tail.mkString(";"))
-      })
-      val uc = dimUser.sortByKey(ascending = true, 1).collect()
-      var latestUserId = if (uc.size == 0) 0 else uc.last._1.toInt
-      val newFoundUsers = rawData.map(updateUserDim)
-        .leftOuterJoin(dimUser.map(p => (p._2, p._1)))
-        .filter(p => p._2._2.isEmpty).distinct().collect()
-      val newUserFile = new File(s"$dimDir/$from/user/${DateTime.now().getMillis}")
-      val userWriter = new OutputStreamWriter(new FileOutputStream(newUserFile))
-      val currentUsers: Array[(String, Any)] = newFoundUsers map {
-        case (k, (_, None)) =>
-          latestUserId += 1
-          val line = s"$latestUserId;$k\n"
-          userWriter.write(line)
-          (k.replaceAll("\\+", "\\\\+"), latestUserId)
-        case (k, (_, id)) => (k.replaceAll("\\+", "\\\\+"), id)
-      }
-      userWriter.flush()
-      userWriter.close()
-      val dimPage = sc.textFile(s"$dimDir/$from/page").map(p => {
-        val temp = p.split(";")
-        (temp.head, temp.last)
-      })
-      val pc = dimPage.sortByKey(ascending = true, 1).collect()
-      var latestPageId = if (pc.size == 0) 0 else pc.last._1.toInt
-      val newFoundPages = rawData.map(updatePageDim).flatMap(p => p).map(p => (p, 1))
-        .leftOuterJoin(dimPage).filter(p => p._2._2.isEmpty).filter(p=>p._1.length>0).distinct().collect()
-      val newPageFile = new File(s"$dimDir/$from/page/${DateTime.now().getMillis}")
-      val pageWriter = new OutputStreamWriter(new FileOutputStream(newPageFile))
-      val currentPages: Array[(String, Any)] = newFoundPages map {
-        case (k, (v, None)) =>
-          latestPageId += 1
-          val line = s"$latestPageId;$k\n"
-          pageWriter.write(line)
-          (k, latestPageId)
-        case (k, (_, id)) => (k, id)
-      }
-      pageWriter.flush()
-      pageWriter.close()
-
-      val dims = List(currentPages.toList, currentUsers.toList)
-      logError(s"$dims")
-      val replRaw = rawData.map(p => repl(p, dims)).cache()
-
-      replRaw.saveAsTextFile("/tmp/11")
-      //      replRaw.map(genKV).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/12")
-      //      rawData.map(replacePage).flatMap(p => p).map(p => (p, 1)).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/13")
+    val dimUser = sc.textFile(userpath).map(p => {
+      val temp = p.split(";")
+      (temp.head.toInt, temp.tail.mkString(";"))
+    })
+    val uc = dimUser.sortByKey(ascending = true, 1).collect()
+    var latestUserId = if (uc.size == 0) 0 else uc.last._1.toInt
+    val newFoundUsers = rawData.map(updateUserDim)
+      .leftOuterJoin(dimUser.map(p => (p._2, p._1)))
+      .filter(p => p._2._2.isEmpty).distinct().collect()
+    val newUserFile = new File(s"$userpath/${DateTime.now().getMillis}")
+    val userWriter = new OutputStreamWriter(new FileOutputStream(newUserFile))
+    val currentUsers: Array[(String, Any)] = newFoundUsers map {
+      case (k, (_, None)) =>
+        latestUserId += 1
+        val line = s"$latestUserId;$k\n"
+        userWriter.write(line)
+        (k.replaceAll("\\+", "\\\\+"), latestUserId)
+      case (k, (_, id)) => (k.replaceAll("\\+", "\\\\+"), id)
     }
+    userWriter.flush()
+    userWriter.close()
+
+    val dimPage = sc.textFile(pagepath).map(p => {
+      val temp = p.split(";")
+      (temp.head, temp.last)
+    })
+    val pc = dimPage.sortByKey(ascending = true, 1).collect()
+    var latestPageId = if (pc.size == 0) 0 else pc.last._1.toInt
+    val newFoundPages = rawData.map(updatePageDim).flatMap(p => p).map(p => (p, 1))
+      .leftOuterJoin(dimPage).filter(p => p._2._2.isEmpty).filter(p => p._1.length > 0).distinct().collect()
+    val newPageFile = new File(s"$pagepath/${DateTime.now().getMillis}")
+    val pageWriter = new OutputStreamWriter(new FileOutputStream(newPageFile))
+    val currentPages: Array[(String, Any)] = newFoundPages map {
+      case (k, (v, None)) =>
+        latestPageId += 1
+        val line = s"$latestPageId;$k\n"
+        pageWriter.write(line)
+        (k, latestPageId)
+      case (k, (_, id)) => (k, id)
+    }
+    pageWriter.flush()
+    pageWriter.close()
+
+    val dims = List(currentPages.toList, currentUsers.toList)
+    logError(s"$dims")
+    val replRaw = rawData.map(p => repl(p, dims)).cache()
+
+    val replRawPath = s"$outDir/$datacenter/$datatype/$tws/out"
+    replRaw.saveAsTextFile(replRawPath)
+    //      replRaw.map(genKV).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/12")
+    //      rawData.map(replacePage).flatMap(p => p).map(p => (p, 1)).reduceByKey(_ + _, 1).saveAsTextFile("/tmp/13")
   }
 
   def chooseFormatter(text: String)(implicit tps: Map[String, List[CDRFormatter]]) = {
@@ -228,7 +248,7 @@ object MainApp extends App with Logging {
 
 
   def convertToStd(text: String)(implicit tps: Map[String, List[CDRFormatter]]) = {
-        logError(s"cts=$text")
+    logError(s"cts=$text")
     val formatter = chooseFormatter(text)
     //    logError(s"$delimiter")
     //    logError(s"$fixedF")
@@ -258,10 +278,9 @@ object MainApp extends App with Logging {
     //    logError(s"up=$text")
     val delimiter = ";"
     text.split(delimiter)(fixedF.indexOf("action_url")).split(",").toList
-//    pagePattern.r.findAllMatchIn(pages).map(p => s"$p").toList
+    //    pagePattern.r.findAllMatchIn(pages).map(p => s"$p").toList
   }
 }
-
 
 class CDRFormatter(properties: Properties) extends Serializable with Logging {
   val tsPattern = "yyyy-MM-dd HH:mm:SS"
@@ -312,7 +331,7 @@ class CDRFormatter(properties: Properties) extends Serializable with Logging {
         case "LONG" => ovs.toLong
         case _ =>
           key.toLowerCase match {
-            case "action_url"=>fmt.r.findAllMatchIn(ovs).map(p => s"$p").mkString(",")
+            case "action_url" => fmt.r.findAllMatchIn(ovs).map(p => s"$p").mkString(",")
             case _ => ovs
           }
       })

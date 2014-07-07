@@ -1,3 +1,5 @@
+import AssemblyKeys._
+
 name := "bic2demo"
 
 version := "1.0"
@@ -22,11 +24,13 @@ libraryDependencies ++= Seq(
 //  "com.beachape.filemanagement" %% "schwatcher" % "0.1.5",
 //  "com.typesafe.akka" %% "akka-actor" % "2.3.2",
 //  "com.netflix.rxjava" % "rxjava-scala" % "0.19.2",
-  "joda-time" % "joda-time" % "2.1",
+  "joda-time" % "joda-time" % "2.3",
+  "org.joda" % "joda-convert" % "1.6",
   "org.apache.spark" %% "spark-core" % "1.0.0",
-  "org.apache.hadoop" % "hadoop-client" % "2.4.0" exclude("javax.servlet", "servlet-api")
-    //exclude("javax.servlet", "servlet-api")
+  "org.apache.hadoop" % "hadoop-client" % "2.4.0"
 )
+
+assemblySettings
 
 
 pomExtra :=
@@ -42,8 +46,3 @@ pomExtra :=
       <url></url>
     </developer>
   </developers>
-
-
-lazy val hello = taskKey[Unit]("Prints 'Hello World'")
-
-hello := println("hello world!")

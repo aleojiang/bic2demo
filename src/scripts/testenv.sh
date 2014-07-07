@@ -1,10 +1,10 @@
 #!/bin/bash
 
-targetrawfolder="/mnt/backup/bic"
+targetrawfolder="/mnt/backup/bic/etl"
 rm -rf ${targetrawfolder}
 
 datacenters=(idc mdc)
-datapaths=(raw run conf out dim)
+datapaths=(raw in conf out dim)
 dims=(page user event)
 dts=(cccdr ccstats cgcdr cgstats mucdr mustats submscdr submsstats huaweicdr)
 
@@ -15,9 +15,10 @@ do
         if [ "${path}" == "dim" ]; then
             for dim in "${dims[@]}"
             do
-                mkdir -p ${targetrawfolder}/$path/${dc}/${dim}
+                tdir=${targetrawfolder}/$path/${dc}/${dim}
+                mkdir -p ${tdir}
                 currenttime=$(date +%s)
-                touch ${targetrawfolder}/${path}/${dc}/${dim}/${currenttime}.dim
+                touch ${tdir}/${currenttime}.dim
             done
         else
             for dt in "${dts[@]}"
@@ -29,10 +30,8 @@ do
 done
 
 testsrc=/home/patrick.jiang/opensources/bic2demo/src/test/resources/data
-cp ${testsrc}/raw/* /mnt/backup/bic/raw/idc/cccdr/
-cp ${testsrc}/raw/* /mnt/backup/bic/raw/mdc/cccdr/
-cp ${testsrc}/cccdr.properties /mnt/backup/bic/conf/idc/cccdr/
-cp ${testsrc}/cccdr.properties /mnt/backup/bic/conf/mdc/cccdr/
+cp ${testsrc}/raw/* ${targetrawfolder}/raw/idc/cccdr/
+cp ${testsrc}/raw/* ${targetrawfolder}/raw/mdc/cccdr/
 
 #targetrawfolder="/mnt/backup/bic/raw/${datacenter}/"
 #t1="/mnt/backup/bic/raw/idc"
@@ -63,8 +62,8 @@ cp ${testsrc}/cccdr.properties /mnt/backup/bic/conf/mdc/cccdr/
 #cp ${psc}cccdr.properties /mnt/backup/bic/conf/
 #
 ##prepare raw data
-#cp ${psc}raw/* /mnt/backup/bic/raw/idc/cccdr/
-#cp ${psc}raw/*.properties /mnt/backup/bic/raw/idc/cccdr/
+#cp ${psc}raw/* /mnt/backup/bic/raw/cccdr/idc
+#cp ${psc}raw/*.properties /mnt/backup/bic/raw/cccdr/idc
 #touch  /mnt/backup/bic/dim/idc/user/1.dim
 #touch  /mnt/backup/bic/dim/idc/page/1.dim
 #touch  /mnt/backup/bic/dim/mdc/user/1.dim
